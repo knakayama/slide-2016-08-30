@@ -1,0 +1,121 @@
+@import url(https://fonts.googleapis.com/css?family=Droid+Serif);
+@import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+@import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+body {
+  font-family: 'Droid Serif';
+}
+
+h1, h2, h3 {
+  font-weight: 400;
+  font-weight: bold;
+  margin-bottom: 0;
+}
+
+.remark-slide-content h1 { font-size: 4em; }
+.remark-slide-content h2 { font-size: 3em; }
+.remark-slide-content h3 { font-size: 2em; }
+
+.red { color: red; }
+
+.large { font-size: 2em; }
+
+a, a > code {
+  color: rgb(249, 38, 114);
+  text-decoration: none;
+}
+
+code {
+  background: #e7e8e2;
+  border-radius: 5px;
+}
+
+.remark-code, .remark-inline-code {
+  font-family: 'Ubuntu Mono';
+}
+
+.remark-code-line-highlighted {
+  background-color: #373832;
+}
+
+.pull-left {
+  float: left;
+  width: 47%;
+}
+
+.pull-right {
+  float: right;
+  width: 47%;
+}
+
+.pull-right ~ p {
+  clear: both;
+}
+
+#slideshow .slide .content code {
+  font-size: 0.8em;
+}
+
+#slideshow .slide .content pre code {
+  font-size: 0.9em;
+  padding: 15px;
+}
+
+strong {
+  font-size: 7em;
+  color: red;
+}
+
+blockquote {
+  font-size: 3.5em;
+}
+
+#slide-how .slides {
+  font-size: 0.9em;
+  position: absolute;
+  top:  151px;
+  right: 140px;
+}
+
+#slide-how .slides h3 {
+  margin-top: 0.2em;
+}
+
+#slide-how .slides .first, #slide-how .slides .second {
+  padding: 1px 20px;
+  height: 90px;
+  width: 120px;
+  -moz-box-shadow: 0 0 10px #777;
+  -webkit-box-shadow: 0 0 10px #777;
+  box-shadow: 0 0 10px #777;
+}
+
+#slide-how .slides .first {
+  background: #fff;
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  z-index: 1;
+}
+
+#slide-how .slides .second {
+  position: relative;
+  background: #fff;
+  z-index: 0;
+}
+
+img[alt=knakayama], img[alt=classmethod] {
+  width: 90px;
+}
+
+img[alt=PSA] {
+  width: 400px;
+}
+
+img[alt=aws-mini], img[alt=aws], img[alt=aws-route53], img[alt=aws-acm], img[alt=aws-cloudfront], img[alt=aws-s3], img[alt=aws-api-gateway], img[alt=aws-lambda], img[alt=aws-iam], img[alt=original] {
+  width: 700px;
+}
+
+img[alt=access-normal], img[alt=access-high], img[alt=cloudwatch-metrics] {
+  width: 900px;
+}
