@@ -70,9 +70,11 @@ layout: true
 class: middle
 
 ---
+## 実装はものすごくシンプル
 ### - フォームにURL入力
 ### - 入力されたURLを短縮した文字列に変換して返す
 ### - 短縮されたURLでアクセスされたら元のURLを返す
+### - 新しいことを学ぶ際のはじめの一歩としてオススメ
 
 ---
 layout: true
@@ -90,6 +92,40 @@ class: middle
 ### - AWS/GCP/Azureなど主要なクラウドサービスに対応
 ### - 「リソース」という概念で利用サービスを定義
 ### - HCLという独自言語でリソースをコードとして管理できる
+### - 今回は利用したAWSサービスを全てTerraformでコード化
+
+---
+### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;例: セキュリティグループの作成
+```bash
+# リソース: aws_security_group
+# リソース名: sg
+resource "aws_security_group" "sg" {
+  name        = "sg-for-rds"
+  vpc_id      = "${aws_vpc.vpc.id}"
+  description = "SG for RDS"
+
+  # Inboundは3306ポートを特定のセキュリティグループからのみ許可
+  ingress {
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = ["${var.sg["app"]}"] # マップ
+  }
+
+  # Outboundは全部の通信を許可
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Nameタグ
+  tags {
+    Name = "sg-for-rds"
+  }
+}
+```
 
 ---
 layout: true
