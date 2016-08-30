@@ -100,18 +100,16 @@ class: middle
 # リソース: aws_security_group
 # リソース名: sg
 resource "aws_security_group" "sg" {
-  name        = "sg-for-rds"
-  vpc_id      = "${aws_vpc.vpc.id}"
+  name        = "${var.name}-sg"    # 変数の参照
+  vpc_id      = "${aws_vpc.vpc.id}" # リソースが持つ属性の参照
   description = "SG for RDS"
-
   # Inboundは3306ポートを特定のセキュリティグループからのみ許可
   ingress {
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
-    security_groups = ["${var.sg["app"]}"] # マップ
+    security_groups = ["${var.sg["app"]}"] # 変数の種類には文字列/配列/マップが利用可能
   }
-
   # Outboundは全部の通信を許可
   egress {
     from_port   = 0
@@ -119,10 +117,9 @@ resource "aws_security_group" "sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   # Nameタグ
   tags {
-    Name = "sg-for-rds"
+    Name = "${var.name}-sg"
   }
 }
 ```
@@ -156,18 +153,21 @@ class: middle
 ### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Route53の設定
 
 ```bash
+# Hosted Zoneの作成
 resource "aws_route53_zone" "dns" {
   name = "${var.domain_config["domain"]}"
 }
 
+# Record Setの作成
 resource "aws_route53_record" "cf" {
-  zone_id = "${aws_route53_zone.dns.zone_id}"
-  name    = "${var.domain_config["sub_domain"]}"
+  zone_id = "${aws_route53_zone.dns.zone_id}"    # Record Setを登録するHosted Zone ID
+  name    = "${var.domain_config["sub_domain"]}" # 登録するドメイン
   type    = "A"
 
+  # ALIASレコードにしている
   alias {
-    name                   = "${var.cf_domain_name}"
-    zone_id                = "${var.cf_hosted_zone_id}"
+    name                   = "${var.cf_domain_name}"    # CloudFrontに割り当てられるドメイン
+    zone_id                = "${var.cf_hosted_zone_id}" # CloudFrontに割り当てられるHosted Zone ID
     evaluate_target_health = false
   }
 }
@@ -198,12 +198,13 @@ class: middle
 ### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ACMの設定
 
 ```bash
+# CloudFrontの作成
 resource "aws_cloudfront_distribution" "cf" {
 <snip>
   viewer_certificate {
-    acm_certificate_arn      = "${var.cf_config["acm_arn"]}"
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1"
+    acm_certificate_arn      = "${var.cf_config["acm_arn"]}" # ACMのARN
+    ssl_support_method       = "sni-only" # SNIのみサポート(専用IPは付けない)
+    minimum_protocol_version = "SSLv3"
   }
 }
 ```
@@ -238,11 +239,8 @@ class: middle
 
 ```bash
 resource "aws_cloudfront_distribution" "cf" {
-  comment          = "${var.name}-cf"
-  price_class      = "${var.cf_config["price_class"]}"
-  aliases          = ["${var.domain_config["sub_domain"]}.${var.domain_config["domain"]}"]
-  retain_on_delete = true
-  enabled          = true
+  <snip>
+  # リダイレクト用オブジェクト
   origin {
     domain_name = "${var.s3_website_endpoint}"
     origin_id   = "OriginRedirect"
@@ -255,23 +253,25 @@ resource "aws_cloudfront_distribution" "cf" {
       origin_ssl_protocols   = ["TLSv1", "SSLv3"]
     }
   }
+
+  # 管理画面
   origin {
     domain_name = "${var.s3_website_endpoint}"
     origin_id   = "OriginAdmin"
+    <snip>
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1", "SSLv3"]
-<snip>
+  # API Gateway
+  origin {
+    domain_name = "${var.api_gateway_id}.execute-api.${var.aws_region}.amazonaws.com"
+    origin_id   = "OriginAPIGW"
+    <snip>
 ```
 
 ---
 ### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CloudFrontの設定例(Behavior)
 
 ```bash
-<snip>
+  # リダイレクト用オブジェクト
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
@@ -288,17 +288,16 @@ resource "aws_cloudfront_distribution" "cf" {
       }
     }
   }
-
+  # 管理画面
   cache_behavior {
     path_pattern           = "/admin/*"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
     target_origin_id       = "OriginAdmin"
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-<snip>
+    <snip>
+  # API Gateway
+  cache_behavior {
+    path_pattern           = "/prod/*"
+    target_origin_id       = "OriginAPIGW"
+    <snip>
 ```
 
 ---
@@ -335,32 +334,32 @@ class: middle
 ### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;S3の設定(バケット)
 
 ```bash
+# バケットポリシーの作成
 data "aws_iam_policy_document" "s3" {
   statement {
     sid    = "AddPerm"
     effect = "Allow"
     actions = [
-      "s3:GetObject",
+      "s3:GetObject", # オブジェクトの参照を許可
     ]
     resources = [
-      "arn:aws:s3:::${random_id.s3.hex}/*",
+      "arn:aws:s3:::${random_id.s3.hex}/*", # 特定のバケットにのみ許可
     ]
     principals = {
       type = "AWS"
 
       identifiers = [
-        "*",
+        "*", # プリンシプルは設定しない
       ]
-    }
-  }
-}
+    <snip>
+# バケットの作成
 resource "aws_s3_bucket" "s3" {
-  bucket        = "${random_id.s3.hex}"
-  acl           = "public-read"
-  policy        = "${data.aws_iam_policy_document.s3.json}"
+  bucket        = "${random_id.s3.hex}" # バケット名
+  acl           = "public-read" # ACL
+  policy        = "${data.aws_iam_policy_document.s3.json}" # ポリシーの設定
   force_destroy = true
   website {
-    index_document = "${var.s3_config["index"]}"
+    index_document = "${var.s3_config["index"]}" # Webサイトホスティング機能の有効化
   }
 }
 ```
@@ -384,7 +383,7 @@ class: middle
 ### - Lambdaの呼び出しに利用している
 
 ---
-### - Terraformでコード化するとめちゃめちゃ長くなる。。。
+### - Terraformでコード化するとクソ長い
 ### - APIが複雑な場合は別のフレームワーク使った方がいい気がする
 #### - 1. `aws_api_gateway_rest_api` で元となるAPIを定義
 #### - 2. `aws_api_gateway_method` でHTTPメソッドを作成
@@ -502,23 +501,27 @@ class: middle
 ### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IAMの設定
 
 ```bash
+# IAM Roleの作成
 resource "aws_iam_role" "lambda_function" {
   name               = "${var.name}-role"
   assume_role_policy = "${file("${path.module}/policy/lambda_assume_role_policy.json")}"
 }
 
+# AWSマネージドポリシーのひも付け(CloudWatchFullAccess)
 resource "aws_iam_policy_attachment" "cloudwatch_full_access" {
   name       = "CloudWatchFullAccess"
   roles      = ["${aws_iam_role.lambda_function.name}"]
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchFullAccess"
 }
 
+# AWSマネージドポリシーのひも付け(S3FullAccess)
 resource "aws_iam_policy_attachment" "s3_full_access" {
   name       = "S3FullAccess"
   roles      = ["${aws_iam_role.lambda_function.name}"]
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 ```
+
 ---
 layout: true
 class: center, middle
@@ -576,16 +579,16 @@ serverless-url-shortener/
 ---
 ### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Apexの設定ファイル(project.json)
 
-```json
+```bash
 {
-  "name": "serverless-url-shortener",
-  "description": "serverless url shortener",
-  "nameTemplate": "{{.Function.Name}}",
-  "memory": 128,
-  "timeout": 10,
-  "runtime": "python",
-  "defaultEnvironment": "prod",
-  "environment": {
+  "name": "serverless-url-shortener", # Lambda関数名
+  "description": "serverless url shortener", # 説明
+  "nameTemplate": "{{.Function.Name}}", # Lambda関数名のテンプレート
+  "memory": 128, # 割り当てるメモリ
+  "timeout": 10, # Lambda関数のタイムアウト時間
+  "runtime": "python", # 言語
+  "defaultEnvironment": "prod", # Lambda関数の環境
+  "environment": { # 環境変数
     "S3Bucket": "_YOUR_BUCKET_",
     "S3Prefix": "u"
   }
